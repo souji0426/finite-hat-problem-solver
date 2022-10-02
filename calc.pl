@@ -44,7 +44,7 @@ sub calc {
   calc_num_of_predictor( $data );
   my $predictor_list_file_path = make_predictor_list();
   analysis_predictor( $coloring_list_file_path, $strategy_list_file_path, $predictor_list_file_path );
-  make_data_of_answer_data( $predictor_list_file_path );
+  make_answer_data( $predictor_list_file_path );
   if ( $setting->{"pass_mode"} eq "off" and $setting->{"simultaneous_mode"} eq "on" ) {
    output_minimal_predictor_result( $coloring_list_file_path, $strategy_list_file_path, $predictor_list_file_path );
   }
@@ -578,7 +578,7 @@ sub get_strategy_data {
 
 #------------------------------------------------------------------
 
-sub make_data_of_answer_data {
+sub make_answer_data {
   my ( $predictor_list_file_path ) = @_;
 
   my $process_name = "全predictorシミュレーション結果解析";
