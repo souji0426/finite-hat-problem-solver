@@ -38,16 +38,23 @@ calc();
 
 sub calc {
   my $coloring_list_file_path = make_coloring_list();
-  my $strategy_list_file_path = make_strategy_list( $coloring_list_file_path );
   make_indistinguishable_coloring_list( $coloring_list_file_path );
-  make_chooseable_strategy_list( $strategy_list_file_path );
-  calc_num_of_predictor( $data );
-  my $predictor_list_file_path = make_predictor_list();
-  analysis_predictor( $coloring_list_file_path, $strategy_list_file_path, $predictor_list_file_path );
-  make_answer_data( $predictor_list_file_path );
-  if ( $setting->{"pass_mode"} eq "off" and $setting->{"simultaneous_mode"} eq "on" ) {
-   output_minimal_predictor_result( $coloring_list_file_path, $strategy_list_file_path, $predictor_list_file_path );
+  my $prisoner_list = read_list( "prisoner" );
+  foreach my $prisoner_name ( @$prisoner_list ) {
+    if ( $prisoner_name eq "0" ) {
+      next;
+    }
+    make_strategy_list( $prisoner_name, $coloring_list_file_path );
   }
+
+  #make_chooseable_strategy_list( $strategy_list_file_path );
+  #calc_num_of_predictor( $data );
+  #my $predictor_list_file_path = make_predictor_list();
+  #analysis_predictor( $coloring_list_file_path, $strategy_list_file_path, $predictor_list_file_path );
+  #make_answer_data( $predictor_list_file_path );
+  #if ( $setting->{"pass_mode"} eq "off" and $setting->{"simultaneous_mode"} eq "on" ) {
+  # output_minimal_predictor_result( $coloring_list_file_path, $strategy_list_file_path, $predictor_list_file_path );
+  #}
   #print Dumper $data;
 }
 
@@ -119,96 +126,6 @@ sub make_coloring_list {
   return $coloring_list_file_path;
 }
 
-#------------------------------------------------------------------
-sub make_strategy_list {
-  my ( $coloring_list_file_path ) = @_;
-
-  my $process_name = "全strategyリスト作成";
-  my $start_time = subroutine_start( $process_name );
-
-  my $num_of_coloring = get_num_of_line( $coloring_list_file_path );
-  my $strategy_list_file_name = "strategy_list.txt";
-  my $strategy_list_file_path = "${calc_data_dir_path}/strategy_list.txt";
-  my $color_list = read_list( "color" );
-  if ( $setting->{"pass_mode"} eq "on" ) {
-    my @array = @$color_list;
-    push ( @array, "p" );
-    $color_list = \@array;
-  }
-  my $num_of_color = @$color_list;
-  open( my $coloring_list_fh, "<", encode_cp932( $coloring_list_file_path ) );
-
-  my $first = 1;
-  my $calc_counter = 0;
-  my $calc_file_path;
-
-  while( my $line = <$coloring_list_fh> ) {
-    my $line_counter = 1;
-    chomp $line;
-    my ( $coloring_name, $coloring_data ) = read_function_data( $line );
-
-    if ( $first ) {
-      $calc_file_path = "${calc_data_dir_path}/calc_${calc_counter}.txt";
-
-      my $num_of_target_file = $num_of_coloring * $num_of_color;
-
-      open( my $calc_fh, ">", encode_cp932( $calc_file_path ) );
-      foreach my $color_name ( @$color_list ) {
-        print $calc_fh "${coloring_name}-${color_name}\n";
-        print_process_for_making_function_list(
-        $process_name, $start_time, $calc_counter+1, $num_of_coloring, $line_counter, $num_of_target_file );
-        $line_counter++;
-      }
-      close $calc_fh;
-      $calc_counter++;
-      $first = 0;
-
-    } else {
-
-      my $last_counter = $calc_counter-1;
-      my $last_calc_file_path = "${calc_data_dir_path}/calc_${last_counter}.txt";
-      my $now_calc_file_path = "${calc_data_dir_path}/calc_${calc_counter}.txt";
-
-      my $num_of_target_file = get_num_of_line( $last_calc_file_path ) * $num_of_color;
-
-      open( my $last_calc_fh, "<", encode_cp932( $last_calc_file_path ) );
-      open( my $now_calc_fh, ">", encode_cp932( $now_calc_file_path ) );
-      while ( my $last_line = <$last_calc_fh> ) {
-        chomp $last_line;
-        foreach my $color_name ( @$color_list ) {
-          print $now_calc_fh "$last_line,${coloring_name}-${color_name}\n";
-          print_process_for_making_function_list(
-          $process_name, $start_time, $calc_counter+1, $num_of_coloring, $line_counter, $num_of_target_file );
-          $line_counter++;
-        }
-      }
-      close $last_calc_fh;
-      unlink encode_cp932( $last_calc_file_path );
-      close $now_calc_fh;
-      $calc_counter++;
-
-      if ( $num_of_coloring == $calc_counter ) {
-        open( my $strategy_list_fh, ">", $strategy_list_file_path );
-        open( my $now_calc_fh, "<", encode_cp932( $now_calc_file_path ) );
-        my $strategy_counter = 0;
-        while ( my $now_line = <$now_calc_fh> ) {
-          print $strategy_list_fh "${strategy_counter}:" . $now_line;
-          $strategy_counter++;
-        }
-        close $now_calc_fh;
-        close $strategy_list_fh;
-        unlink encode_cp932( $now_calc_file_path );
-        $data->{"num_of_strategy"} = $strategy_counter;
-      }
-
-    }
-  }
-  close $coloring_list_fh;
-
-  subroutine_end( $start_time, $process_name );
-  copy( encode_cp932( $strategy_list_file_path ), encode_cp932( "${result_data_dir_path}/${strategy_list_file_name}" ) );
-  return $strategy_list_file_path;
-}
 #------------------------------------------------------------------
 
 sub make_indistinguishable_coloring_list {
@@ -345,6 +262,171 @@ sub is_indistinguish {
 
 #------------------------------------------------------------------
 
+sub make_strategy_list {
+  my ( $prisoner_name, $coloring_list_file_path ) = @_;
+
+  my $process_name = "囚人${prisoner_name}のstrategyリスト作成";
+  my $start_time = subroutine_start( $process_name );
+
+  my $num_of_coloring = get_num_of_line( $coloring_list_file_path );
+  my $strategy_list_file_name = "strategy_list_${prisoner_name}.txt";
+  my $strategy_list_file_path = "${calc_data_dir_path}/${strategy_list_file_name}";
+  my $color_list = read_list( "color" );
+  if ( $setting->{"pass_mode"} eq "on" ) {
+    my @array = @$color_list;
+    push ( @array, "p" );
+    $color_list = \@array;
+  }
+  my $num_of_color = @$color_list;
+  open( my $coloring_list_fh, "<", encode_cp932( $coloring_list_file_path ) );
+
+  my $first = 1;
+  my $calc_counter = 0;
+  my $calc_file_path;
+
+  while( my $line = <$coloring_list_fh> ) {
+    my $line_counter = 1;
+    chomp $line;
+    my ( $coloring_name, $coloring_data ) = read_function_data( $line );
+
+    if ( $first ) {
+      $calc_file_path = "${calc_data_dir_path}/calc_${calc_counter}.txt";
+
+      my $num_of_target_file = $num_of_coloring * $num_of_color;
+
+      open( my $calc_fh, ">", encode_cp932( $calc_file_path ) );
+      foreach my $color_name ( @$color_list ) {
+        print $calc_fh "${coloring_name}-${color_name}\n";
+        print_process_for_making_function_list(
+        $process_name, $start_time, $calc_counter+1, $num_of_coloring, $line_counter, $num_of_target_file );
+        $line_counter++;
+      }
+      close $calc_fh;
+      $calc_counter++;
+      $first = 0;
+
+    } else {
+
+      my $last_counter = $calc_counter-1;
+      my $last_calc_file_path = "${calc_data_dir_path}/calc_${last_counter}.txt";
+      my $now_calc_file_path = "${calc_data_dir_path}/calc_${calc_counter}.txt";
+
+      my $num_of_target_file = get_num_of_line( $last_calc_file_path ) * $num_of_color;
+
+      open( my $last_calc_fh, "<", encode_cp932( $last_calc_file_path ) );
+      open( my $now_calc_fh, ">", encode_cp932( $now_calc_file_path ) );
+      while ( my $last_line = <$last_calc_fh> ) {
+        chomp $last_line;
+        foreach my $color_name ( @$color_list ) {
+          my $fragment_of_strategy = "$last_line,${coloring_name}-${color_name}";
+          if ( is_target_fragment_of_strategy( $prisoner_name, $fragment_of_strategy ) ) {
+            print $now_calc_fh "$last_line,${coloring_name}-${color_name}\n";
+          }
+          print_process_for_making_function_list(
+          $process_name, $start_time, $calc_counter+1, $num_of_coloring, $line_counter, $num_of_target_file );
+          $line_counter++;
+        }
+      }
+      close $last_calc_fh;
+      unlink encode_cp932( $last_calc_file_path );
+      close $now_calc_fh;
+      $calc_counter++;
+
+      if ( $num_of_coloring == $calc_counter ) {
+        open( my $strategy_list_fh, ">", $strategy_list_file_path );
+        open( my $now_calc_fh, "<", encode_cp932( $now_calc_file_path ) );
+        my $strategy_counter = 0;
+        while ( my $now_line = <$now_calc_fh> ) {
+          print $strategy_list_fh "${strategy_counter}:" . $now_line;
+          $strategy_counter++;
+        }
+        close $now_calc_fh;
+        close $strategy_list_fh;
+        unlink encode_cp932( $now_calc_file_path );
+        $data->{"num_of_strategy"} = $strategy_counter;
+      }
+
+    }
+  }
+  close $coloring_list_fh;
+
+  subroutine_end( $start_time, $process_name );
+  copy( encode_cp932( $strategy_list_file_path ), encode_cp932( "${result_data_dir_path}/${strategy_list_file_name}" ) );
+  return $strategy_list_file_path;
+}
+
+sub is_target_fragment_of_strategy {
+  my ( $prisoner_name, $fragment_of_strategy ) = @_;
+  my $is_target = 1;
+  my ( $name, $data_of_fragment ) = read_function_data( "hoge:" . $fragment_of_strategy );
+  my @coloring_in_domain_of_fragment = keys %$data_of_fragment;
+
+  my $indistinguishable_coloring_list_txt_path = "${calc_data_dir_path}/indistinguishable_coloring_list_of_${prisoner_name}.txt";
+  my $indistinguishable_coloring_data = read_indistinguishable_coloring_list( $indistinguishable_coloring_list_txt_path );
+  foreach my $class_counter ( keys %$indistinguishable_coloring_data ) {
+    my @colorings_in_class = @{$indistinguishable_coloring_data->{$class_counter}};
+
+    open( my $fh, ">>", "hoge.txt" );
+    print $fh Dumper \@coloring_in_domain_of_fragment;
+    print $fh Dumper \@colorings_in_class;
+
+    my @target_coloring = get_same_element( \@coloring_in_domain_of_fragment, \@colorings_in_class );
+    print $fh Dumper \@target_coloring;
+    my $num_of_target = @target_coloring;
+    if ( $num_of_target < 2 ) {
+
+      next;
+    } elsif ( $num_of_target > 1 ) {
+
+      my $representative_coloring = $target_coloring[0];
+      shift @target_coloring;
+      my $color_at_representative_coloring = $data_of_fragment->{$representative_coloring};
+      foreach my $coloring ( @target_coloring ) {
+        if ( $data_of_fragment->{$coloring} ne $color_at_representative_coloring ) {
+          print $fh Dumper $data_of_fragment;
+          $is_target = 0;
+          last;
+        }
+      }
+    }
+    print $fh "\n\n";
+    close $fh;
+
+  }
+
+  return $is_target;
+}
+
+sub read_indistinguishable_coloring_list {
+  my ( $file_path ) = @_;
+  my %data;
+  open( my $fh, "<", encode_cp932( $file_path) );
+  my $class_counter = 0;
+  while( my $line = <$fh> ) {
+    chomp $line;
+    my @class = split( ",", $line );
+    $data{$class_counter} = \@class;
+    $class_counter++;
+  }
+  close $fh;
+  return \%data;
+}
+
+sub get_same_element {
+  my ( $array_one, $array_two ) = @_;
+  my @same_element;
+  foreach my $element_one ( @$array_one ) {
+    foreach my $element_two ( @$array_two ) {
+      if ( $element_one eq $element_two ) {
+        push( @same_element, $element_one );
+      }
+    }
+  }
+  return @same_element;
+}
+
+#------------------------------------------------------------------
+
 sub make_chooseable_strategy_list {
   my ( $strategy_list_file_path ) = @_;
 
@@ -375,20 +457,7 @@ sub make_chooseable_strategy_list {
   subroutine_end( $start_time, $process_name );
 }
 
-sub read_indistinguishable_coloring_list {
-  my ( $file_path ) = @_;
-  my %data;
-  open( my $fh, "<", encode_cp932( $file_path) );
-  my $class_counter = 0;
-  while( my $line = <$fh> ) {
-    chomp $line;
-    my @class = split( ",", $line );
-    $data{$class_counter} = \@class;
-    $class_counter++;
-  }
-  close $fh;
-  return \%data;
-}
+
 
 sub is_chooseable {
   my ( $indistinguishable_coloring_data, $strategy_data ) = @_;
@@ -728,14 +797,16 @@ sub subroutine_start {
 
 sub print_process_for_making_function_list {
   my ( $str, $start_time, $calc_counter, $num_of_calc, $counter, $num_of_all ) = @_;
-  my $degree_of_completion = int( ($counter/$num_of_all)*100 );
-  my $now = time;
-  my $process_time = $now - $start_time;
-  pop @$log_messeage;
-  push( @$log_messeage, "${str}中　　" .
-  "（${calc_counter}／${num_of_calc}段階目）${degree_of_completion}％完了（${counter}／${num_of_all}）　　${process_time}秒経過" );
-  system( "cls\n" );
-  print encode_cp932( join( "\n\n", @$log_messeage ) );
+  if ( $counter % 50 != 0 ) {
+    my $degree_of_completion = int( ($counter/$num_of_all)*100 );
+    my $now = time;
+    my $process_time = $now - $start_time;
+    pop @$log_messeage;
+    push( @$log_messeage, "${str}中　　" .
+    "（${calc_counter}／${num_of_calc}段階目）${degree_of_completion}％完了（${counter}／${num_of_all}）　　${process_time}秒経過" );
+    system( "cls\n" );
+    print encode_cp932( join( "\n\n", @$log_messeage ) );
+  }
 }
 
 sub print_process_for_predictor {
